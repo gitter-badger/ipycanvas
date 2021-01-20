@@ -61,6 +61,21 @@ async function createImageFromWidget(image: DOMWidgetModel): Promise<HTMLImageEl
   });
 }
 
+async function createImageFromBuffer(buffer: any): Promise<HTMLImageElement> {
+  let url: string;
+
+  const blob = new Blob([buffer], {type: 'image/jpeg'});
+  url = URL.createObjectURL(blob);
+
+  const img = new Image();
+  return new Promise((resolve) => {
+    img.onload = () => {
+      resolve(img);
+    };
+    img.src = url;
+  });
+}
+
 
 const COMMANDS = [
   'fillRect', 'strokeRect', 'fillRects', 'strokeRects', 'clearRect', 'fillArc',
@@ -380,7 +395,7 @@ class CanvasModel extends DOMWidgetModel {
         await this.drawImage(args, buffers);
         break;
       case 'putImageData':
-        this.putImageData(args, buffers);
+        await this.putImageData(args, buffers);
         break;
       case 'set':
         await this.setAttr(args[0], args[1]);
@@ -574,7 +589,7 @@ class CanvasModel extends DOMWidgetModel {
 
   private _drawImage(image: HTMLCanvasElement | HTMLImageElement,
                      x: number, y: number,
-                     width: number | undefined, height: number | undefined) {
+                     width?: number, height?: number) {
     if (width === undefined || height === undefined) {
       this.ctx.drawImage(image, x, y);
     } else {
@@ -582,22 +597,12 @@ class CanvasModel extends DOMWidgetModel {
     }
   }
 
-  private putImageData(args: any[], buffers: any) {
-    const [bufferMetadata, dx, dy] = args;
+  private async putImageData(args: any[], buffers: any) {
+    const [x, y] = args;
 
-    const width = bufferMetadata.shape[1];
-    const height = bufferMetadata.shape[0];
+    const image = await createImageFromBuffer(buffers[0]);
 
-    const data = new Uint8ClampedArray(buffers[0].buffer);
-    const imageData = new ImageData(data, width, height);
-
-    // Draw on a temporary off-screen canvas. This is a workaround for `putImageData` to support transparency.
-    const offscreenCanvas = document.createElement('canvas');
-    offscreenCanvas.width = width;
-    offscreenCanvas.height = height;
-    getContext(offscreenCanvas).putImageData(imageData, 0, 0);
-
-    this.ctx.drawImage(offscreenCanvas, dx, dy);
+    this._drawImage(image, x, y);
   }
 
   protected async setAttr(attr: number, value: any) {
